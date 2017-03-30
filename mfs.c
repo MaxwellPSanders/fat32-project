@@ -19,6 +19,7 @@ int counter, counter2; // counters
 char *arg; // buffer to hold current argument being processed while memory allocation in progress
 char *paths[4]; // array of pointers to paths 
 int opened = 0; //boolean to see if a file is already open
+FILE *fp;
 
 /* 
  * Function: get_user_input
@@ -61,6 +62,28 @@ void cntl_z_handler(int signal) {
     // explain proper exit procedure to user
     printf("\nPlease user \"exit\" or \"quit\" to exit the mav shell\nmsh>");
     fflush(stdout);
+}
+
+/* 
+ * Function: open_file
+ * Parameters: the filename of the file
+ * Returns: Nothing
+ * Description: Tries to open the file
+ * If it doesn't open then returns an error statement
+ * If it does open then will change opened to 1
+ */
+void open_file(char* filename) {
+    //tries to open the file
+    fp = fopen(filename, "r");
+
+    //either indicate the file is opened or closed
+    if(fp != NULL){
+	printf("Opened %s\n", filename);
+        opened = 1;
+    }
+    else
+	printf("Could not locate file\n");
+        
 }
 
 /* 
@@ -111,20 +134,28 @@ int main(void) {
             exit (0);
 	
         // open the file or tell them a file is already open
-        if(!strcmp(base_command, "open") && !opened){
-            printf("implement file opening here\n");    
-            opened = 1;    
+        if(!strcmp(base_command, "open")){
+            //if a file isn't opened try to open a file
+            if(!opened)
+                open_file(args[0]);
+            else
+                printf("There is already a file open\n");
         }
-        else if(opened)
-            printf("A file is already opened\n");
-        
+ 
         // close the file or tell them no files are open
-        if(!strcmp(base_command, "close") && opened){
-            printf("implement file closing here\n");    
-            opened = 0;    
+        if(!strcmp(base_command, "close")){
+            //if a file is opened close it
+            if(opened){
+                fclose(fp);
+                printf("Closed file\n");	
+            }
+            else
+                printf("There is no files open\n");
         }
-        else if(!opened)
-            printf("No files are open\n");
+
+        // print out some of the stats inside the file
+        if(!strcmp(base_command, "info") && opened)
+            printf("implement info getting here\n");
     
     }
     exit(0);
