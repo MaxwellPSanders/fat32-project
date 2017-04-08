@@ -87,6 +87,24 @@ void open_file(char* filename) {
 }
 
 /* 
+ * Function: display_info
+ * Parameters: None
+ * Returns: Nothing
+ * Description: Will display the filesystem info
+ * If a file is not opened then it will display 
+ * an error message instead
+ */
+void display_info() {
+    if(!opened)
+        printf("There is no file open!\n");
+    else{
+        printf("If we had data it would be displaying here\n");
+    } 
+}
+
+
+
+/* 
  * Function: main
  * Parameters: None
  * Returns: int (return code)
@@ -154,8 +172,9 @@ int main(void) {
         }
 
         // print out some of the stats inside the file
-        if(!strcmp(base_command, "info") && opened)
-            printf("implement info getting here\n");
+        if(!strcmp(base_command, "info"))
+            display_info();
+
     
     }
     exit(0);
