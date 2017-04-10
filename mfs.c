@@ -198,7 +198,6 @@ void show_stat(){
     char *token; // token for the string to strtok into
     int whitespace; // the offset white space
     int found = 0; // boolean to see if an entry was found
-    int i = 0;
 
     //if the filesytem is open then do the process
     //otherwise notify the user
@@ -247,11 +246,41 @@ void show_stat(){
                 printf("File name too long (8 characters).\n");
             }
             else{
-                //add spaces
+                //add spaces to the name
                 whitespace = 8 - strlen(namebuffer);
-                //concat
+                //concat whitespace into filename and then extension onto filename
+                for(counter = 0; counter < whitespace; counter ++){
+                    strcat(namebuffer, " ");
+                }
+                strcpy(extbuffer, token);
+                //add spaces to the file extension
+                whitespace = 3 - strlen(extbuffer);
+                //concat whitespace into filename and then extension onto filename
+                for(counter = 0; counter < whitespace; counter ++){
+                    strcat(extbuffer, " ");
+                }
+                //concatenate together
+                sprintf(statbuffer, "%s%s", namebuffer, extbuffer);
                 //uppercase everything
+                for(counter = 0; counter < 11; counter ++){
+                    statbuffer[counter] = toupper(statbuffer[counter]);
+                }
                 //check through directory   
+                found = 0;
+                for(counter = 0; counter < 16; counter ++){
+                    //if you find the entry then break out
+                    if(!strcmp(dir[counter].DIR_Name, statbuffer)){
+                        //print attribute, starting cluster number, and size
+                        printf("Attribute: %x\n", dir[counter].DIR_Attr);
+                        printf("Starting cluster number:\n    Hex - %x\n    Decimal - %d\n", 
+                                   dir[counter].DIR_FirstClusterLow, dir[counter].DIR_FirstClusterLow);
+                        printf("Size: %d Bytes\n", dir[counter].DIR_FileSize); 
+                        found = 1;
+                        break;
+                    }
+                }
+                if(!found)
+                    printf("File not found\n");    
             }
         }
         else
@@ -276,7 +305,7 @@ int main(void) {
     signal(SIGTSTP, cntl_z_handler);
 
     // allocate memory for current argument buffer
-    arg = malloc(200);
+    arg = (char*) malloc(200);
     while (1) {
 
         //nothing is done from the start
@@ -292,7 +321,7 @@ int main(void) {
         arg = strtok(user_input, " ");
  
         // allocate memory for base command
-        base_command = malloc(sizeof(arg)+1);
+        base_command = (char*) malloc(sizeof(arg)+1);
         base_command = arg;
 
         // set up counter to count tokens
@@ -301,7 +330,7 @@ int main(void) {
             arg = strtok(NULL, " ");
            
             // allocate memory for arguments
-            args[counter] = malloc(sizeof(arg)+1);
+            args[counter] = (char*) malloc(sizeof(arg)+1);
             args[counter] = arg;
             counter++;
         // loop until no more arguments
