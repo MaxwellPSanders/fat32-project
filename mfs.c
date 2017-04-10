@@ -37,7 +37,7 @@ int32_t BPB_FATSz32; // number of sectors contained in one FAT
 int32_t BPB_RootClus; // the number of the first cluster of the root directory
 
 int32_t RootDirClusterAddr = 0; // offset location of the root directory
-int32_t ParentDirClusterAddr = 0; // offset location of the parent directory
+//we need a parent directory stack for the user to move back and forth in
 int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
 
 struct DirectoryEntry {
@@ -96,6 +96,26 @@ void cntl_z_handler(int signal) {
 }
 
 /* 
+ * Function: populate_dir
+ * Parameters: address of the directory cluster you are at
+ * Returns: Nothing
+ * Description: Will populate the directory entry array
+ * with the directory at the given cluster
+ */
+void populate_dir(int DirectoryAddress) {
+    fseek(fp, DirectoryAddress, SEEK_SET);
+    for(counter = 0; counter < 16; counter ++){
+        fread(dir[counter].DIR_Name, 1, 11, fp);
+        fread(&dir[counter].DIR_Attr, 1, 1, fp);
+        fread(&dir[counter].Unused1, 1, 8, fp);
+        fread(&dir[counter].DIR_FirstClusterHigh, 2, 1, fp);
+        fread(&dir[counter].Unused2, 1, 4, fp);
+        fread(&dir[counter].DIR_FirstClusterLow, 2, 1, fp);
+        fread(&dir[counter].DIR_FileSize, 4, 1, fp);
+    }
+}
+
+/* 
  * Function: open_file
  * Parameters: the filename of the file
  * Returns: Nothing
@@ -136,22 +156,12 @@ void open_file(char* filename) {
         CurrentDirClusterAddr = RootDirClusterAddr;
 
         //fill dir by going to the address and reading in the data to structs
-        fseek(fp, RootDirClusterAddr, SEEK_SET);
-        for(counter = 0; counter < 16; counter ++){
-             fread(dir[counter].DIR_Name, 1, 11, fp);
-             fread(&dir[counter].DIR_Attr, 1, 1, fp);
-             fread(&dir[counter].Unused1, 1, 8, fp);
-             fread(&dir[counter].DIR_FirstClusterHigh, 2, 1, fp);
-             fread(&dir[counter].Unused2, 1, 4, fp);
-             fread(&dir[counter].DIR_FirstClusterLow, 2, 1, fp);
-             fread(&dir[counter].DIR_FileSize, 4, 1, fp);
-        }
+        populate_dir(CurrentDirClusterAddr);
     }
     else
         printf("Could not locate file\n");
 
 }
-
 
 /* 
  * Function: list_dir
