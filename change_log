@@ -7,7 +7,9 @@ info implementation
     open_file gets data			completed 4/9/17
     display_info displays data		completed 4/9/17
 stat implementation
-    stub created`
+    stub created			completed 4/10/17
+    displays the stats of the file
+    detect if file is not found
 cd implementation
 ls implementation
 read implementation

@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <stdint.h>
 
 char user_input[300]; // user input buffer
 char *base_command; // base command (separated to help with finding path)
@@ -20,6 +21,7 @@ char *arg; // buffer to hold current argument being processed while memory alloc
 char *paths[4]; // array of pointers to paths 
 int opened = 0; // boolean to see if a file is already open
 FILE *fp; // file pointer to the fat32
+FILE *temp_fp; //file pointer for calls to read
 
 //The actual fat32 variables
 char BS_OEMName[8]; // the name of the OEM
@@ -32,9 +34,20 @@ char BS_VolLab[11]; // label of the volume
 int32_t BPB_FATSz32; // number of sectors contained in one FAT
 int32_t BPB_RootClus; // the number of the first cluster of the root directory
 
-int32_t RootDirSectors = 0;
-int32_t FirstDataSector = 0;
-int32_t FirstSectorofCluster = 0;
+int32_t RootDirClusterAddr = 0; // offset location of the root directory
+int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
+
+struct __attribute__((__packed__)) DirectoryEntry {
+    char DIR_Name[11];
+    uint8_t DIR_Attr;
+    uint8_t Unused1[8];
+    uint16_t DIR_FirstClusterHigh;
+    uint8_t Unused2[4];
+    uint16_t DIR_FirstClusterLow;
+    uint32_t DIR_FileSize;
+};
+
+struct DirectoryEntry dir[16]; // holds the directory entries for the current directory
 
 /* 
  * Function: get_user_input
@@ -86,7 +99,7 @@ void cntl_z_handler(int signal) {
  * Description: Tries to open the file
  * If it doesn't open then returns an error statement
  * If it does open then will change opened to 1
- * This will also populate the BPB variables
+ * This will also populate the BPB variables as well as the root directory entry
  */
 void open_file(char* filename) {
     //tries to open the file
@@ -111,6 +124,19 @@ void open_file(char* filename) {
         fread(&BPB_RootClus, 1, 4, fp);
         fseek(fp, 71, SEEK_SET);
         fread(BS_VolLab, 1, 11, fp); 
+
+        //calculate the root directory location
+        RootDirClusterAddr = (BPB_NumFATs * BPB_FATSz32 * BPB_BytesPerSec) +
+                             (BPB_RsvdSecCnt * BPB_BytesPerSec);
+
+        //start off in the root directory
+        CurrentDirClusterAddr = RootDirClusterAddr;
+
+        //fill dir by going to the address and reading in the data to structs
+        fseek(fp, RootDirClusterAddr, SEEK_SET);
+        for(counter = 0; counter < 16; counter ++){
+             fread(&dir[counter], 1, 32, fp);
+        }
     }
     else
         printf("Could not locate file\n");
@@ -149,7 +175,21 @@ void display_info() {
     } 
 }
 
-
+/*
+ * Function: show_stat
+ * Parameters: None
+ * Returns: nothing
+ * Description: Will display attributes, starting cluster number, and size of
+ * a specified filename or directory.
+ * If the file/directory can't be found then it will pop an error
+ */
+void show_stat(){
+    if(opened){
+        printf("The filesystem is opened and stuff would be happening here.\n");
+    }
+    else
+        printf("There is no filesystem open.\n");
+}
 
 /* 
  * Function: main
@@ -216,6 +256,7 @@ int main(void) {
             if(opened){
                 fclose(fp);
                 printf("Closed file\n");	
+                opened = 0;
             }
             else
                 printf("There is no files open\n");
@@ -225,7 +266,10 @@ int main(void) {
         if(!strcmp(base_command, "info"))
             display_info();
 
-    
+        // print out some of the stats inside the file
+        if(!strcmp(base_command, "stat"))
+            show_stat();
+
     }
     exit(0);
 }
