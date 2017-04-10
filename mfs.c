@@ -37,6 +37,7 @@ int32_t BPB_FATSz32; // number of sectors contained in one FAT
 int32_t BPB_RootClus; // the number of the first cluster of the root directory
 
 int32_t RootDirClusterAddr = 0; // offset location of the root directory
+int32_t ParentDirClusterAddr = 0; // offset location of the parent directory
 int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
 
 struct DirectoryEntry {
@@ -151,6 +152,34 @@ void open_file(char* filename) {
 
 }
 
+
+/* 
+ * Function: list_dir
+ * Parameters: none
+ * Returns: Nothing
+ * Description: Will display the directory contents specified
+ * If a file is not opened then it will display 
+ * an error message instead
+ */
+void list_dir() {
+    //check to see if the filesystem is open
+    if(!opened){
+        printf("There is no filesystem open.\n");
+        return;
+    }
+    //check the current directory
+    if(args[0] == NULL || !strcmp(args[0],".")){
+        for(counter = 0; counter < 16; counter ++){
+            //if the attribute is 1, 16, 32 then we show it
+            if(dir[counter].DIR_Attr == 1  ||
+               dir[counter].DIR_Attr == 16 ||
+               dir[counter].DIR_Attr == 32 ){
+                printf("%s    %d Bytes\n", dir[counter].DIR_Name, dir[counter].DIR_FileSize);   
+            }   
+        }
+    }
+}
+
 /* 
  * Function: display_info
  * Parameters: None
@@ -205,9 +234,14 @@ void show_stat(){
         //the max name length could only be 8 + 1 + 3
         if(strlen(args[0]) < 13){
             //copy the first part of the string, delimited by .
-            strcpy(namebuffer, strtok(args[0], ".\n"));
+            token = strtok(args[0], ".");
+            if(token == NULL){
+                printf("Not a valid filename\n");
+                return;
+            }
+            strcpy(namebuffer, token);
             //grab the second part of the string after the .
-            token = strtok(NULL, "\n");
+            token = strtok(NULL, "");
             //if the token didn't receive anything then check if the file is a directory
             //otherwise check if it a valid file
             if(token == NULL && strlen(namebuffer) < 12){
@@ -373,8 +407,14 @@ int main(void) {
         }
 
         // print out some of the stats inside the file
-        if(!strcmp(base_command, "stat") && args[1] == NULL){
+        if(!strcmp(base_command, "stat") && args[0] != NULL && args[1] == NULL){
             show_stat();
+            didsomething ++;
+        }
+
+        // print out some of the stats inside the file
+        if(!strcmp(base_command, "ls") && args[1] == NULL){
+            list_dir();
             didsomething ++;
         }
 

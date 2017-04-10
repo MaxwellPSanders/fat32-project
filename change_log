@@ -22,8 +22,8 @@ cd implementation
     relative pathing support
 
 ls implementation
-    stub created
-    current directory listing
+    stub created             		completed 4/10/17
+    current directory listing 		comlpeted 4/10/17
     relative directory listing
 
 read implementation
