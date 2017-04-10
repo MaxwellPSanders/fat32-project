@@ -8,6 +8,7 @@ info implementation
     display_info displays data		completed 4/9/17
 stat implementation
     stub created			completed 4/10/17
+    displays the stats of the directory completed 4/10/17
     displays the stats of the file
     detect if file is not found
 cd implementation

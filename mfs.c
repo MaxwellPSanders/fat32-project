@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdint.h>
+#include <ctype.h>
 
 char user_input[300]; // user input buffer
 char *base_command; // base command (separated to help with finding path)
@@ -22,6 +23,7 @@ char *paths[4]; // array of pointers to paths
 int opened = 0; // boolean to see if a file is already open
 FILE *fp; // file pointer to the fat32
 FILE *temp_fp; //file pointer for calls to read
+int didsomething = 0; // boolean to see if the command was used
 
 //The actual fat32 variables
 char BS_OEMName[8]; // the name of the OEM
@@ -37,8 +39,8 @@ int32_t BPB_RootClus; // the number of the first cluster of the root directory
 int32_t RootDirClusterAddr = 0; // offset location of the root directory
 int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
 
-struct __attribute__((__packed__)) DirectoryEntry {
-    char DIR_Name[11];
+struct DirectoryEntry {
+    char DIR_Name[12];
     uint8_t DIR_Attr;
     uint8_t Unused1[8];
     uint16_t DIR_FirstClusterHigh;
@@ -135,7 +137,13 @@ void open_file(char* filename) {
         //fill dir by going to the address and reading in the data to structs
         fseek(fp, RootDirClusterAddr, SEEK_SET);
         for(counter = 0; counter < 16; counter ++){
-             fread(&dir[counter], 1, 32, fp);
+             fread(dir[counter].DIR_Name, 1, 11, fp);
+             fread(&dir[counter].DIR_Attr, 1, 1, fp);
+             fread(&dir[counter].Unused1, 1, 8, fp);
+             fread(&dir[counter].DIR_FirstClusterHigh, 2, 1, fp);
+             fread(&dir[counter].Unused2, 1, 4, fp);
+             fread(&dir[counter].DIR_FirstClusterLow, 2, 1, fp);
+             fread(&dir[counter].DIR_FileSize, 4, 1, fp);
         }
     }
     else
@@ -184,8 +192,70 @@ void display_info() {
  * If the file/directory can't be found then it will pop an error
  */
 void show_stat(){
+    char namebuffer[20]; // string for the name
+    char extbuffer[4]; // string for the extension
+    char statbuffer[20]; // string that will become the concatenation of the previous two
+    char *token; // token for the string to strtok into
+    int whitespace; // the offset white space
+    int found = 0; // boolean to see if an entry was found
+    int i = 0;
+
+    //if the filesytem is open then do the process
+    //otherwise notify the user
     if(opened){
-        printf("The filesystem is opened and stuff would be happening here.\n");
+        //the max name length could only be 8 + 1 + 3
+        if(strlen(args[0]) < 13){
+            //copy the first part of the string, delimited by .
+            strcpy(namebuffer, strtok(args[0], ".\n"));
+            //grab the second part of the string after the .
+            token = strtok(NULL, "\n");
+            //if the token didn't receive anything then check if the file is a directory
+            //otherwise check if it a valid file
+            if(token == NULL && strlen(namebuffer) < 12){
+                //uppercase everything
+                for(counter = 0; counter < 11; counter ++){
+                    namebuffer[counter] = toupper(namebuffer[counter]);
+                }
+                //add spaces
+                whitespace = 11 - strlen(namebuffer);
+                //concat whitespace
+                for(counter = 0; counter < whitespace; counter ++){
+                    strcat(namebuffer, " ");
+                }
+                //check through the directory
+                found = 0;
+                for(counter = 0; counter < 16; counter ++){
+                    //if you find the entry then break out
+                    if(!strcmp(dir[counter].DIR_Name, namebuffer)){
+                        //print attribute, starting cluster number, and size
+                        printf("Attribute: %x\n", dir[counter].DIR_Attr);
+                        printf("Starting cluster number:\n    Hex - %x\n    Decimal - %d\n", 
+                                   dir[counter].DIR_FirstClusterLow, dir[counter].DIR_FirstClusterLow);
+                        //becuase it is a directory
+                        printf("Size: 0 Bytes\n"); 
+                        found = 1;
+                        break;
+                    }
+                }    
+                if(!found)
+                    printf("Couldn't find the directory\n");
+            }
+            else if(strlen(token) > 3){
+                printf("File extension too long (3 characters)\n");
+            }
+            else if(strlen(namebuffer) > 8){
+                printf("File name too long (8 characters).\n");
+            }
+            else{
+                //add spaces
+                whitespace = 8 - strlen(namebuffer);
+                //concat
+                //uppercase everything
+                //check through directory   
+            }
+        }
+        else
+            printf("That is an invalid file or directory name\n");
     }
     else
         printf("There is no filesystem open.\n");
@@ -208,6 +278,9 @@ int main(void) {
     // allocate memory for current argument buffer
     arg = malloc(200);
     while (1) {
+
+        //nothing is done from the start
+        didsomething = 0;
         
         // print shell input ready
         printf("mfs>");
@@ -248,6 +321,7 @@ int main(void) {
                 open_file(args[0]);
             else
                 printf("There is already a file open\n");
+            didsomething ++;
         }
  
         // close the file or tell them no files are open
@@ -260,15 +334,24 @@ int main(void) {
             }
             else
                 printf("There is no files open\n");
+            didsomething ++;
         }
 
         // print out some of the stats inside the file
-        if(!strcmp(base_command, "info"))
+        if(!strcmp(base_command, "info")){
             display_info();
+            didsomething ++;
+        }
 
         // print out some of the stats inside the file
-        if(!strcmp(base_command, "stat"))
+        if(!strcmp(base_command, "stat") && args[1] == NULL){
             show_stat();
+            didsomething ++;
+        }
+
+        //if the base command is something and not used 
+        if(strcmp(base_command, "\n") && !didsomething)
+            printf("That isn't a valid command\n");
 
     }
     exit(0);
