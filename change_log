@@ -4,9 +4,10 @@ Open implementation			completed 3/30/17
 Close implementation			completed 3/30/17
 info implementation
     stub created			completed 4/7/17
-    open_file gets data
-    display_info displays data
+    open_file gets data			completed 4/9/17
+    display_info displays data		completed 4/9/17
 stat implementation
+    stub created`
 cd implementation
 ls implementation
 read implementation

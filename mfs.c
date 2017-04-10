@@ -18,8 +18,23 @@ char *args[10]; // array of pointers to strings holding arguments
 int counter, counter2; // counters
 char *arg; // buffer to hold current argument being processed while memory allocation in progress
 char *paths[4]; // array of pointers to paths 
-int opened = 0; //boolean to see if a file is already open
-FILE *fp;
+int opened = 0; // boolean to see if a file is already open
+FILE *fp; // file pointer to the fat32
+
+//The actual fat32 variables
+char BS_OEMName[8]; // the name of the OEM
+int16_t BPB_BytesPerSec; // bytes per sector
+int8_t BPB_SecPerClus; // sectors per cluster
+int16_t BPB_RsvdSecCnt; // number of reserved sectors in reserved region
+int8_t BPB_NumFATs; // number of FAT data structures (should be 2)
+int16_t BPB_RootEntCnt; // number of 32 byte directories in the root (should be 0)
+char BS_VolLab[11]; // label of the volume
+int32_t BPB_FATSz32; // number of sectors contained in one FAT
+int32_t BPB_RootClus; // the number of the first cluster of the root directory
+
+int32_t RootDirSectors = 0;
+int32_t FirstDataSector = 0;
+int32_t FirstSectorofCluster = 0;
 
 /* 
  * Function: get_user_input
@@ -71,6 +86,7 @@ void cntl_z_handler(int signal) {
  * Description: Tries to open the file
  * If it doesn't open then returns an error statement
  * If it does open then will change opened to 1
+ * This will also populate the BPB variables
  */
 void open_file(char* filename) {
     //tries to open the file
@@ -78,12 +94,27 @@ void open_file(char* filename) {
 
     //either indicate the file is opened or closed
     if(fp != NULL){
-	printf("Opened %s\n", filename);
+        printf("Opened %s\n", filename);
         opened = 1;
+
+        //grab all of BPB variables
+        fseek(fp, 3, SEEK_SET);
+        fread(BS_OEMName, 1, 8, fp);
+        fread(&BPB_BytesPerSec, 1, 2, fp);
+        fread(&BPB_SecPerClus, 1, 1, fp);
+        fread(&BPB_RsvdSecCnt, 1, 2, fp);
+        fread(&BPB_NumFATs, 1, 1, fp);
+        fread(&BPB_RootEntCnt, 1, 2, fp);
+        fseek(fp, 36, SEEK_SET);
+        fread(&BPB_FATSz32, 1, 4, fp);
+        fseek(fp, 44, SEEK_SET);
+        fread(&BPB_RootClus, 1, 4, fp);
+        fseek(fp, 71, SEEK_SET);
+        fread(BS_VolLab, 1, 11, fp); 
     }
     else
-	printf("Could not locate file\n");
-        
+        printf("Could not locate file\n");
+
 }
 
 /* 
@@ -98,7 +129,23 @@ void display_info() {
     if(!opened)
         printf("There is no file open!\n");
     else{
-        printf("If we had data it would be displaying here\n");
+        //lines commented out are for debug only
+        //printf("OEMName : %s\n", BS_OEMName);
+        printf("Bytes Per Sector:\n    Hex - %x\n    Decimal - %d\n", 
+                BPB_BytesPerSec, BPB_BytesPerSec);
+        printf("Sectors Per Clusters:\n    Hex - %x\n    Decimal - %d\n", 
+                BPB_SecPerClus, BPB_SecPerClus);
+        printf("Reserved Sector Count:\n    Hex - %x\n    Decimal - %d\n", 
+                BPB_RsvdSecCnt, BPB_RsvdSecCnt);
+        printf("Number of FAT regions:\n    Hex - %x\n    Decimal - %d\n", 
+                BPB_NumFATs, BPB_NumFATs);
+        //printf("Root Entry Count : %d\n", BPB_RootEntCnt);
+        printf("Sectors per FAT:\n    Hex - %x\n    Decimal - %d\n", 
+                BPB_FATSz32, BPB_FATSz32);
+        //next line won't print since the value of VolLab is 02, 11 times 
+        //printf("Volume Label : %s\n", BS_VolLab);
+        //printf("First Cluster of the Root Directory : %d\n", BPB_RootClus);
+
     } 
 }
 
@@ -148,8 +195,11 @@ int main(void) {
         } while(arg != NULL);
 
         // handle all exits
-       	if(!strcmp(base_command, "exit") || !strcmp(base_command, "quit"))
+       	if(!strcmp(base_command, "exit") || !strcmp(base_command, "quit")){
+            if(opened)
+                fclose(fp);
             exit (0);
+        }
 	
         // open the file or tell them a file is already open
         if(!strcmp(base_command, "open")){
