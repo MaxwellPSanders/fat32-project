@@ -16,14 +16,13 @@
 
 char user_input[300]; // user input buffer
 char *base_command; // base command (separated to help with finding path)
-char *args[10]; // array of pointers to strings holding arguments
+char *args[20]; // array of pointers to strings holding arguments
 int counter, counter2; // counters
 char *arg; // buffer to hold current argument being processed while memory allocation in progress
 char *paths[4]; // array of pointers to paths 
 int opened = 0; // boolean to see if a file is already open
 FILE *fp; // file pointer to the fat32
 FILE *temp_fp; //file pointer for calls to read
-int didsomething = 0; // boolean to see if the command was used
 
 //The actual fat32 variables
 char BS_OEMName[8]; // the name of the OEM
@@ -37,9 +36,10 @@ int32_t BPB_FATSz32; // number of sectors contained in one FAT
 int32_t BPB_RootClus; // the number of the first cluster of the root directory
 
 int32_t RootDirClusterAddr = 0; // offset location of the root directory
-//we need a parent directory stack for the user to move back and forth in
+int32_t ParentAddrStack[20]; //we need a parent directory stack for the user to move back and forth in
 int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
 
+//struct to hold all of the entry data
 struct DirectoryEntry {
     char DIR_Name[12];
     uint8_t DIR_Attr;
@@ -95,23 +95,42 @@ void cntl_z_handler(int signal) {
     fflush(stdout);
 }
 
+/* Function: make_name
+ * Parameter: unedited name of the directory
+ * returns: nothing
+ * Description: takes in the unedited directory address
+ * and edits it to be uppercase with spaces
+ */
+void make_name(char* dir_name){
+    int whitespace = 11 - strlen(dir_name);
+    //uppercase everything
+    for(counter = 0; counter < 11; counter ++){
+        dir_name[counter] = toupper(dir_name[counter]);
+    }
+    //add whitespace
+    for(counter = 0; counter < whitespace; counter ++){
+        strcat(dir_name, " ");
+    }
+}
+
 /* 
  * Function: populate_dir
- * Parameters: address of the directory cluster you are at
+ * Parameters: address of the directory cluster you are at and the dir struct you want to fill
  * Returns: Nothing
  * Description: Will populate the directory entry array
  * with the directory at the given cluster
  */
-void populate_dir(int DirectoryAddress) {
+void populate_dir(int DirectoryAddress, struct DirectoryEntry* direct) {
     fseek(fp, DirectoryAddress, SEEK_SET);
     for(counter = 0; counter < 16; counter ++){
-        fread(dir[counter].DIR_Name, 1, 11, fp);
-        fread(&dir[counter].DIR_Attr, 1, 1, fp);
-        fread(&dir[counter].Unused1, 1, 8, fp);
-        fread(&dir[counter].DIR_FirstClusterHigh, 2, 1, fp);
-        fread(&dir[counter].Unused2, 1, 4, fp);
-        fread(&dir[counter].DIR_FirstClusterLow, 2, 1, fp);
-        fread(&dir[counter].DIR_FileSize, 4, 1, fp);
+        fread(direct[counter].DIR_Name, 1, 11, fp);
+        direct[counter].DIR_Name[11] = 0;
+        fread(&direct[counter].DIR_Attr, 1, 1, fp);
+        fread(&direct[counter].Unused1, 1, 8, fp);
+        fread(&direct[counter].DIR_FirstClusterHigh, 2, 1, fp);
+        fread(&direct[counter].Unused2, 1, 4, fp);
+        fread(&direct[counter].DIR_FirstClusterLow, 2, 1, fp);
+        fread(&direct[counter].DIR_FileSize, 4, 1, fp);
     }
 }
 
@@ -156,11 +175,23 @@ void open_file(char* filename) {
         CurrentDirClusterAddr = RootDirClusterAddr;
 
         //fill dir by going to the address and reading in the data to structs
-        populate_dir(CurrentDirClusterAddr);
+        populate_dir(CurrentDirClusterAddr, dir);
     }
     else
         printf("Could not locate file\n");
 
+}
+
+/*
+ * Function: LBtoAddr
+ * Parameters: logical block
+ * Return: address of the cluster
+ * Description: given a logical block, return an address
+ */
+int LBtoAddr(int32_t sector){
+    if(!sector)
+        return RootDirClusterAddr;
+    return (BPB_BytesPerSec * BPB_RsvdSecCnt) + ((sector - 2) * BPB_BytesPerSec) + (BPB_BytesPerSec * BPB_NumFATs * BPB_FATSz32);
 }
 
 /* 
@@ -172,6 +203,12 @@ void open_file(char* filename) {
  * an error message instead
  */
 void list_dir() {
+    char *token; //token to hold what to do next
+    char tempname[15]; //token to hold the directory name
+    char dirname[15]; //this will be used to check against entries
+    int32_t tempAddr = CurrentDirClusterAddr; //this will be used to hold the location of the directory we are in
+    struct DirectoryEntry tempdir[16]; //this will be used to hold the location of the directory we are in    
+    int found; //this will determine whether an entry was found
     //check to see if the filesystem is open
     if(!opened){
         printf("There is no filesystem open.\n");
@@ -187,7 +224,53 @@ void list_dir() {
                 printf("%s    %d Bytes\n", dir[counter].DIR_Name, dir[counter].DIR_FileSize);   
             }   
         }
+        return;
     }
+    //take the first task and start going through the tasks
+    token = strtok(args[0], "/");
+    while(token != NULL){
+        //check to see if it is valid
+        if(strlen(token) > 12){
+            printf("Directory does not exist\n");
+            return;
+        }
+        //take the name and make it uppercase and spaced properly  							       
+        strcpy(tempname, token);
+        make_name(tempname);      
+        //populate the current directory for ease
+        populate_dir(tempAddr, tempdir);
+        //check it against the current directory
+        found = 0;
+        for(counter = 0; counter < 16; counter ++){
+            if(!strcmp(tempdir[counter].DIR_Name, tempname)){
+                tempAddr = LBtoAddr(tempdir[counter].DIR_FirstClusterLow);
+                populate_dir(tempAddr, tempdir);
+                found ++;
+                break;
+            }
+        }
+        //leave if you couldn't find the directory    
+        if(!found){
+            printf("Could not find directory\n");
+            break;
+        }
+        //take the next token
+        token = strtok(NULL,"/");
+        //check to see if the next token is NULL
+        if(token == NULL){
+            //show all the contents   
+            for(counter = 0; counter < 16; counter ++){
+                //if the attribute is 1, 16, 32 then we show it
+                if(tempdir[counter].DIR_Attr == 1  ||
+                   tempdir[counter].DIR_Attr == 16 ||
+                   tempdir[counter].DIR_Attr == 32 ){
+                    printf("%s    %d Bytes\n", tempdir[counter].DIR_Name, tempdir[counter].DIR_FileSize);   
+                }   
+            }
+            break;
+        }
+    }
+    
 }
 
 /* 
@@ -352,9 +435,6 @@ int main(void) {
     arg = (char*) malloc(200);
     while (1) {
 
-        //nothing is done from the start
-        didsomething = 0;
-        
         // print shell input ready
         printf("mfs>");
 
@@ -394,7 +474,7 @@ int main(void) {
                 open_file(args[0]);
             else
                 printf("There is already a file open\n");
-            didsomething ++;
+            continue;
         }
  
         // close the file or tell them no files are open
@@ -407,29 +487,29 @@ int main(void) {
             }
             else
                 printf("There is no files open\n");
-            didsomething ++;
+            continue;
         }
 
         // print out some of the stats inside the file
         if(!strcmp(base_command, "info")){
             display_info();
-            didsomething ++;
+            continue;
         }
 
         // print out some of the stats inside the file
         if(!strcmp(base_command, "stat") && args[0] != NULL && args[1] == NULL){
             show_stat();
-            didsomething ++;
+            continue;
         }
 
         // print out some of the stats inside the file
         if(!strcmp(base_command, "ls") && args[1] == NULL){
             list_dir();
-            didsomething ++;
+            continue;
         }
 
         //if the base command is something and not used 
-        if(strcmp(base_command, "\n") && !didsomething)
+        if(strcmp(base_command, "\n"))
             printf("That isn't a valid command\n");
 
     }
