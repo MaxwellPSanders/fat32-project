@@ -315,6 +315,11 @@ void change_dir(){
     char tempname[15]; // name to hold the directory name
     char * token; // token to temporary hold the next task
     int found; // boolean to determine if the directory is found
+    //if the filesystem isn't open you can't do anything
+    if(!opened){
+        printf("There is no filesystem open!\n");
+        return;
+    }
     //if the first argument doesn't exist just go to the root
     if(args[0] == NULL){
         CurrentDirClusterAddr = RootDirClusterAddr;
@@ -352,6 +357,22 @@ void change_dir(){
         if(token == NULL){
             break;
         }
+    }
+}
+
+/*
+ * Function: read_file
+ * Parameters: none
+ * Returns: nothing
+ * Description: Will attempt to read a file starting from a position
+ * in the file and displaying a certain amount of bytes after
+ */
+void read_file(){
+
+    //if the file isn't open get out of here
+    if(!opened){
+        printf("There is no filesystem open!\n");
+        return;
     }
 }
 
@@ -561,6 +582,12 @@ int main(void) {
         //change the directory
         if(!strcmp(base_command, "cd") && args[1] == NULL){
             change_dir();
+            continue;
+        }
+
+        //read a file
+        if(!strcmp(base_command, "read") && args[3] == NULL){
+            read_file(); 
             continue;
         }
 
