@@ -688,7 +688,7 @@ int main(void) {
             args[counter] = arg;
             counter++;
         // loop until no more arguments
-        } while(arg != NULL);
+        } while(counter < 10);
 
         // handle all exits
        	if(!strcmp(base_command, "exit") || !strcmp(base_command, "quit")){
