@@ -647,6 +647,8 @@ void show_stat(){
         printf("There is no filesystem open.\n");
 }
 
+
+
 /* 
  * Function: main
  * Parameters: None
@@ -703,7 +705,7 @@ int main(void) {
             if(!opened)
                 open_file(args[0]);
             else
-                printf("There is already a file open\n");
+                printf("There is already a filesystem open!\n");
             continue;
         }
  
@@ -712,11 +714,11 @@ int main(void) {
             //if a file is opened close it
             if(opened){
                 fclose(fp);
-                printf("Closed file\n");	
+                printf("Closed filesystem.\n");	
                 opened = 0;
             }
             else
-                printf("There is no files open\n");
+                printf("There is no filesystem open!\n");
             continue;
         }
 
@@ -750,9 +752,25 @@ int main(void) {
             continue;
         }
 
+        //display the volume name
+        if(!strcmp(base_command, "volume") && args[0] == NULL){
+             if(!opened){
+                 printf("There is no filesystem open!\n");
+                 continue;
+             }
+             //we can print the volume name we found in the boot record since it
+             //is the same as the one in the root directory 
+             if(!strcmp(BS_VolLab, ""))
+                 printf("Volume name not found\n");
+             else
+	         printf("Volume name: '%s'\n", BS_VolLab);
+             continue;
+        }
+
         //if the base command is something and not used 
         if(strcmp(base_command, "\n"))
             printf("That isn't a valid command\n");
+
 
     }
     exit(0);
