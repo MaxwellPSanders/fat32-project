@@ -17,9 +17,9 @@ stat implementation
     detect if file is not found         completed 4/10/17
 
 cd implementation
-    stub created
-    current directory changing
-    relative pathing support
+    stub created			completed 4/11/17
+    current directory changing  	completed 4/11/17
+    relative pathing support		completed 4/11/17
 
 ls implementation
     stub created             		completed 4/10/17

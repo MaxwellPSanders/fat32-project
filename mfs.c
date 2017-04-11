@@ -36,7 +36,6 @@ int32_t BPB_FATSz32; // number of sectors contained in one FAT
 int32_t BPB_RootClus; // the number of the first cluster of the root directory
 
 int32_t RootDirClusterAddr = 0; // offset location of the root directory
-int32_t ParentAddrStack[20]; //we need a parent directory stack for the user to move back and forth in
 int32_t CurrentDirClusterAddr = 0; // offset location of the directory you are currently in
 
 //struct to hold all of the entry data
@@ -306,6 +305,57 @@ void display_info() {
 }
 
 /*
+ * Function: changes the directory
+ * Parameters: None
+ * Returns: nothing
+ * Description: Changes the directory
+ * If the file/directory can't be found then it will pop an error
+ */
+void change_dir(){
+    char tempname[15]; // name to hold the directory name
+    char * token; // token to temporary hold the next task
+    int found; // boolean to determine if the directory is found
+    //if the first argument doesn't exist just go to the root
+    if(args[0] == NULL){
+        CurrentDirClusterAddr = RootDirClusterAddr;
+        populate_dir(CurrentDirClusterAddr, dir);
+        return;
+    }
+    //take the first task and start going through the tasks
+    token = strtok(args[0], "/");
+    while(token != NULL){
+        //check to see if it is valid
+        if(strlen(token) > 12){
+            printf("Directory does not exist\n");
+            return;
+        }
+        //take the name and make it uppercase and spaced properly  							       
+        strcpy(tempname, token);
+        make_name(tempname);      
+        //check it against the current directory
+        found = 0;
+        for(counter = 0; counter < 16; counter ++){
+            if(!strcmp(dir[counter].DIR_Name, tempname)){
+                CurrentDirClusterAddr = LBtoAddr(dir[counter].DIR_FirstClusterLow);
+                populate_dir(CurrentDirClusterAddr, dir);
+                found ++;
+                break;
+            }
+        }
+        //leave if you couldn't find the directory    
+        if(!found){
+            printf("Could not find directory '%s', stopped at 1 directory before\n", token);
+            break;
+        }
+        //take the next token
+        token = strtok(NULL, "/");
+        if(token == NULL){
+            break;
+        }
+    }
+}
+
+/*
  * Function: show_stat
  * Parameters: None
  * Returns: nothing
@@ -505,6 +555,12 @@ int main(void) {
         // print out some of the stats inside the file
         if(!strcmp(base_command, "ls") && args[1] == NULL){
             list_dir();
+            continue;
+        }
+
+        //change the directory
+        if(!strcmp(base_command, "cd") && args[1] == NULL){
+            change_dir();
             continue;
         }
 
