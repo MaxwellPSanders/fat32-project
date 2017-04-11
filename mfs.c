@@ -112,6 +112,51 @@ void make_name(char* dir_name){
     }
 }
 
+/*
+ * Function: make_file
+ * Parameter: unedited name of the file
+ * returns: nothing
+ * Description: takes in unedited name of the file and 
+ * converts it into proper fat32 format
+ */
+void make_file(char* file_name){
+    char * token; //token used for chopping the file
+    char result[15]; // string to hold all the concats
+    int whitespace = 8; // counter to calculate whitespace
+    //grab the first part of the filename
+    token = strtok(file_name, ".");
+    if(strlen(token) > 8){
+        printf("Invalid filename\n");
+        return;
+    }
+    //copy this into the result
+    strcpy(result, token);
+    //take the next token and check size again
+    token = strtok(NULL, ""); 
+    if(strlen(token) > 3 || token == NULL){
+        printf("Invalid extension for filename\n");
+        return;
+    }
+    //calculate whitespace
+    whitespace -= strlen(result);
+    for(counter = 0; counter < whitespace; counter ++){
+       strcat(result, " ");
+    }
+    //calculate whitespace for the extension and then add both on
+    whitespace = 3 - strlen(token);
+    strcat(result, token);
+    for(counter = 0; counter < whitespace; counter ++){
+        strcat(result, " ");
+    }
+    result[11] = 0;
+    //uppercase everything
+    for(counter = 0; counter < 11; counter ++){
+        result[counter] = toupper(result[counter]);
+    }
+    //copy that back into filename
+    strcpy(file_name, result);
+}
+
 /* 
  * Function: populate_dir
  * Parameters: address of the directory cluster you are at and the dir struct you want to fill
@@ -179,6 +224,20 @@ void open_file(char* filename) {
     else
         printf("Could not locate file\n");
 
+}
+
+/*
+ * Function: next_lb
+ * Parameters: logical block
+ * Return: next_lb
+ * Description: given a logical block, return the next logical block
+ */
+int16_t next_lb(int16_t sector){
+    uint32_t FATAddr = (BPB_RsvdSecCnt * BPB_BytesPerSec) + (sector * 4);
+    int16_t val;
+    fseek(fp, FATAddr, SEEK_SET);
+    fread(&val, 2, 1, fp);
+    return val;
 }
 
 /*
@@ -368,11 +427,111 @@ void change_dir(){
  * in the file and displaying a certain amount of bytes after
  */
 void read_file(){
-
+    char * token; // token to hold the strtok'ed things
+    char tempname[15]; // string to hold the filename or directory of what to look for
+    int found; // boolean to determine if their was a match
+    int32_t tempAddr = CurrentDirClusterAddr; //this will be used to hold the location of the directory we are in
+    struct DirectoryEntry tempdir[16]; //this will be used to hold the location of the directory we are in    
+    int32_t size; // int to hold the size of the file
+    int16_t LB; // used to hold the current logical block
+    int data = atoi(args[2]); // will be used to hold the data needed
+    int BlockOff = atoi(args[1])/512; // int used to hold block offset
+    int ByteOff = atoi(args[1])%512; // int used to hold the initial byte offset
+    int grab; // will be used to hold the max of data or 512
+    char buffer[513]; // string to hold the data retrieved from fread and then displayed
     //if the file isn't open get out of here
     if(!opened){
         printf("There is no filesystem open!\n");
         return;
+    }
+    //tokenize
+    token = strtok(args[0], "/");
+    //do a while loop to read through the argument, changing directories all the while
+    while(1){
+        //if the command is too long it isn't valid
+        if(strlen(token) > 11){
+            printf("Invalid argument!\n");
+            return;
+        } 
+        //copy the token over into a useable buffer
+        strcpy(tempname, token);
+        //take the next token then check if it is NULL, if it is then tempname is a file
+        token = strtok(NULL, "/");
+        if(token == NULL){
+            break;
+        } 
+        //since this is a directory then change the name into proper format and search
+        make_name(tempname);
+        populate_dir(tempAddr, tempdir);
+        found = 0;
+        for(counter = 0; counter < 16; counter ++){
+            //if a match was found then change the temp directory
+            if(!strcmp(tempdir[counter].DIR_Name, tempname)){
+                tempAddr = LBtoAddr(tempdir[counter].DIR_FirstClusterLow);
+                found ++;
+                break;
+            }
+        }
+        //if there was no matches found end it.
+        if(!found){
+            printf("Invalid Directory Name!\n");
+            return;
+        }
+    }
+    //change the command into file format and search the tempdir
+    make_file(tempname);
+    populate_dir(tempAddr, tempdir);
+    found = 0;
+    for(counter = 0; counter < 16; counter ++){
+        //if a match is found then grab the LB and the size
+        if(!strcmp(tempdir[counter].DIR_Name, tempname)){
+            size = tempdir[counter].DIR_FileSize;
+            LB = tempdir[counter].DIR_FirstClusterLow;
+            found ++;
+            break;
+        }
+    }
+    //if it isn't found then tell the user
+    if(!found){
+        printf("File Not Found!\n");
+        return;
+    }
+    //if the file size is smaller than the size requested deny them
+    if(size < data + atoi(args[1])){
+        printf("More data requested than can be given!\n");
+        return;
+    }
+    //loop through block off to find the start
+    for(counter = 0; counter < BlockOff; counter ++){
+        LB = next_lb(LB);
+    }
+    //calculate address of LB
+    tempAddr = LBtoAddr(LB);
+    //go to the offset
+    fseek(fp, tempAddr + ByteOff, SEEK_SET);
+    //while loop until you get all of the data
+    while(1){
+        //choose the minimum
+        if(data < 512)
+            grab = data;
+        else
+            grab = 512;
+        //read the spot and null terminate
+        fread(buffer, 1, 512, fp);
+        buffer[grab] = 0;
+        //display the buffer
+        printf("%s", buffer);
+        //subtract data then check if we need anymore
+        data -= grab;
+        if(data == 0){
+            printf("\n");
+            return;
+        }
+        //grab the next block and calculate the next address
+        LB = next_lb(LB);
+        tempAddr = LBtoAddr(LB);
+        //go to the next address and start again
+        fseek(fp, tempAddr, SEEK_SET); 
     }
 }
 
@@ -586,7 +745,7 @@ int main(void) {
         }
 
         //read a file
-        if(!strcmp(base_command, "read") && args[3] == NULL){
+        if(!strcmp(base_command, "read") && args[1] != NULL && args[2] != NULL  && args[3] == NULL){
             read_file(); 
             continue;
         }
