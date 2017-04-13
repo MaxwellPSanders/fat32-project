@@ -125,7 +125,7 @@ void make_file(char* file_name){
     int whitespace = 8; // counter to calculate whitespace
     //grab the first part of the filename
     token = strtok(file_name, ".");
-    if(strlen(token) > 8){
+    if(strlen(token) > 8 || token == NULL){
         printf("Invalid filename\n");
         return;
     }
@@ -449,7 +449,7 @@ void read_file(){
     //do a while loop to read through the argument, changing directories all the while
     while(1){
         //if the command is too long it isn't valid
-        if(strlen(token) > 11){
+        if(strlen(token) > 12){
             printf("Invalid argument!\n");
             return;
         } 
@@ -520,7 +520,12 @@ void read_file(){
         fread(buffer, 1, 512, fp);
         buffer[grab] = 0;
         //display the buffer
-        printf("%s", buffer);
+        //as hex values
+        for(counter = 0; counter < grab; counter ++){
+            printf("%x ", buffer[counter]);
+        }
+        //as text values
+        //printf("%s", buffer);
         //subtract data then check if we need anymore
         data -= grab;
         if(data == 0){
